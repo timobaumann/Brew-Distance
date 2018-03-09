@@ -20,6 +20,7 @@
 from collections import namedtuple
 import numbers
 import sys
+from functools import lru_cache
 
 # Public symbols
 __all__ = ("distance", "BrewDistanceException")
@@ -66,10 +67,12 @@ def _best(sub_move, ins_move, del_move):
 
     return _Traceback(best_cost, move, traceback)
 
-def _edit_path(string1, string2, cost):
+def _edit_path(string1, string2, cost, flexibleSubst=False):
     """Determine the transformations required to make the first string the same as the second."""
-    len1 = len(string1)
-    len2 = len(string2)
+    list1 = list(string1)
+    list2 = list(string2)
+    len1 = len(list1)
+    len2 = len(list2)
     (match_cost, ins_cost, del_cost, subst_cost) = cost
     distances = dict()
     distances[0, 0] = _Traceback(0, "INITIAL", None)
@@ -87,16 +90,24 @@ def _edit_path(string1, string2, cost):
     # Substitutions
     for i in range(0, len1):
         for j in range(0, len2):
-            if string1[i] == string2[j]:
+            if list1[i] == list2[j]:
                 subst = match_cost
             else:
-                subst = subst_cost
+                subst = _flexible_substitution_cost(list1[i], list2[j]) if flexibleSubst else subst_cost
 
             distances[i + 1, j + 1] = _best(_Traceback(subst, "SUBST", distances[i, j]),
                                             _Traceback(ins_cost, "INS", distances[i + 1, j]),
                                             _Traceback(del_cost, "DEL", distances[i, j + 1]))
 
     return distances[len1, len2]
+
+@lru_cache(maxsize=32)
+def _flexible_substitution_cost(string1, string2):
+    string1 = str.lower(string1)
+    string2 = str.lower(string2)
+    dist = distance(string1, string2, output="distance")
+    cost = dist / len(string1)
+    return cost
 
 def _list_edits(raw_edits):
     """Create a list of the edits made."""
@@ -109,10 +120,10 @@ def _list_edits(raw_edits):
 
     return just_edits
 
-def distance(string1, string2, output="both", cost=(0, 1, 1, 1)):
+def distance(string1, string2, output="both", cost=(0, 1, 1, 1), flexibleSubst=False):
     """Determine the Brew edit distance between two strings.
 
-    string1 is the string to be transformed.
+    string1 is the string (or list of strings) to be transformed.
 
     string2 is the transformation target.
 
@@ -130,18 +141,18 @@ def distance(string1, string2, output="both", cost=(0, 1, 1, 1)):
         "both: provides a tuple containing the output of both
         previous options.
     """
-    if sys.hexversion >= 0x03000000:
-        if not isinstance(string1, str) or not isinstance(string2, str):
-            raise BrewDistanceException("Brew-Distance: non-string input supplied.")
-    else:
-        if not isinstance(string1, basestring) or not isinstance(string2, basestring):
-            raise BrewDistanceException("Brew-Distance: non-string input supplied.")
+#    if sys.hexversion >= 0x03000000:
+#        if not isinstance(string1, str) or not isinstance(string2, str):
+#            raise BrewDistanceException("Brew-Distance: non-string input supplied.")
+#    else:
+#        if not isinstance(string1, basestring) or not isinstance(string2, basestring):
+#            raise BrewDistanceException("Brew-Distance: non-string input supplied.")
 
-        if not isinstance(string1, unicode):
-            string1 = string1.decode("utf-8")
+#        if not isinstance(string1, unicode):
+#            string1 = string1.decode("utf-8")
 
-        if not isinstance(string2, unicode):
-            string2 = string2.decode("utf-8")
+#        if not isinstance(string2, unicode):
+#            string2 = string2.decode("utf-8")
 
     if output != "both" and output != "distance" and output != "edits":
         raise BrewDistanceException("Brew-Distance: invalid output parameter supplied.")
@@ -150,15 +161,19 @@ def distance(string1, string2, output="both", cost=(0, 1, 1, 1)):
           not isinstance(cost[2], numbers.Real) or not isinstance(cost[3], numbers.Real)):
         raise BrewDistanceException("Brew-Distance: invalid cost parameter supplied.")
     else:
-        results = _edit_path(string1, string2, cost)
+        results = _edit_path(string1, string2, cost, flexibleSubst)
 
         if output == "distance":
             return results[0]
         elif output == "edits":
-            return _list_edits(results)
+            return _list_edits(results, flexibleSubst)
         else:
             return (results[0], _list_edits(results))
 
 if __name__ == "__main__":
     print("Brew-Distance: determining results for 'foo' vs. 'fou':")
     print(str(distance("foo", "fou", "both")))
+    print(str(distance(["123", "234"], ["123", "abc", "233"], "both", flexibleSubst=False)))
+    print(str(distance(["123", "234"], ["123", "233", "abc"], "both", flexibleSubst=False))) # yields counter-intuitive result
+    print(str(distance(["123", "234"], ["123", "abc", "233"], "both", flexibleSubst=True)))
+    print(str(distance(["123", "234"], ["123", "233", "abc"], "both", flexibleSubst=True)))
