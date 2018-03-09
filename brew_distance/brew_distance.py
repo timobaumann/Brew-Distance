@@ -27,6 +27,7 @@ __all__ = ("distance", "BrewDistanceException")
 __author__ = "David H. Gutteridge"
 __version__ = "1.0.1"
 
+
 class BrewDistanceException(Exception):
     """Brew-Distance-specific exception used with argument validation."""
 
@@ -34,6 +35,7 @@ class BrewDistanceException(Exception):
 
 # Traceback structure
 _Traceback = namedtuple("_Traceback", "cost move traceback")
+
 
 def _best(sub_move, ins_move, del_move):
     """Determine the optimum edit."""
@@ -66,6 +68,7 @@ def _best(sub_move, ins_move, del_move):
         move = "MATCH"
 
     return _Traceback(best_cost, move, traceback)
+
 
 def _edit_path(string1, string2, cost, flexibleSubst=False):
     """Determine the transformations required to make the first string the same as the second."""
@@ -101,12 +104,13 @@ def _edit_path(string1, string2, cost, flexibleSubst=False):
 
     return distances[len1, len2]
 
+
 @lru_cache(maxsize=32)
 def _flexible_substitution_cost(string1, string2):
     string1 = str.lower(string1)
     string2 = str.lower(string2)
     dist = distance(string1, string2, output="distance")
-    cost = dist / len(string1)
+    cost = dist / max(len(string1), len(string2))
     return cost
 
 def _list_edits(raw_edits):
